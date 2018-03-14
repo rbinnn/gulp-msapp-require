@@ -18,11 +18,6 @@ var defaultConfig = {
     ignoreRelative: true // 忽略相对路径的依赖
 }
 
-var BASE_DIR = process.cwd()
-var pkgJson = fs.readJsonSync(path.resolve(BASE_DIR, "./package.json"))
-var dependencies = _.get(pkgJson, "dependencies")
-var devpendencies = _.get(pkgJson, "devpendencies")
-
 function Deps(options) {
     this.depends = []
     this.pulledList = []
@@ -38,7 +33,7 @@ Deps.prototype.processConfig = function(config) {
         function(key) {
             var val = _.get(config, key)
             if( val && !path.isAbsolute(val) ) {
-                _.set(obj, key, unix(path.resolve(BASE_DIR, val)))
+                _.set(obj, key, unix(path.resolve(process.cwd(), val)))
             }else if( val ) {
                 _.set(obj, key, unix(val))
             }
@@ -120,6 +115,10 @@ Deps.prototype.getDeps = function() {
 Deps.prototype.parseDeps = function() {
     var config = this.config
     var self = this
+
+    var pkgJson = fs.readJsonSync(path.resolve(config.src.npm, "../package.json"))
+    var dependencies = _.get(pkgJson, "dependencies")
+    var devpendencies = _.get(pkgJson, "devpendencies")
     this.depends.forEach(function(item) {
         var dep = item.dep
         if( _.has(dependencies, dep) || _.has(devpendencies, dep) ) {

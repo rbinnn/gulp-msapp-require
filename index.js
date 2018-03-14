@@ -11,12 +11,11 @@ var defaultConfig = {
     entry: "./index.js",
     src: {
         npm: path.resolve(process.cwd(), "./node_modules"),
-        custom: path.resolve(process.cwd(), "../../")
+        custom: process.cwd()
     },
     dist: {
-        root: "./dist/",
-        npm: "./dist/msapp_modules",
-        custom: "./dist/custom_modules"
+        npm: path.resolve(process.cwd(), "./dist/msapp_modules"),
+        custom: path.resolve(process.cwd(), "./dist/custom_modules")
     }
 }
 
@@ -66,7 +65,7 @@ module.exports.manifest = function(options) {
     }
 
     options = _.extend({
-        merge: false,
+        merge: true,
         manifest: "msapp-require-manifest.json"
     }, options)
 

@@ -1,13 +1,14 @@
 {
   "name": "gulp-msapp-require",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Require npm module or common module, for Wechat miniapp",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "rbinwu",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rbin-life/gulp-msapp-require.git"
+  },
   "dependencies": {
     "babel-core": "^6.26.0",
     "babel-generator": "^6.26.1",
@@ -20,5 +21,8 @@
     "through2": "^2.0.3",
     "vinyl": "^2.1.0",
     "vinyl-file": "^3.0.0"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.1"
   }
 }
