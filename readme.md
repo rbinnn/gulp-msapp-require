@@ -34,6 +34,7 @@ var msappRequire = require("gulp-msapp-require")
 // msappRequire(options)
 gulp.task("release", function() {
     gulp.src("src/**/*")
+    .pipe(gulp.dest("./dist"))
     .pipe(msappRequire())
     .pipe(gulp.dest("./dist"))
 })

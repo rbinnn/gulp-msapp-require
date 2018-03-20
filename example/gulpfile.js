@@ -4,6 +4,7 @@ var path = require("path")
 
 gulp.task("release", function() {
     gulp.src(["src/**/*"])
+    .pipe(gulp.dest("./dist"))
     .pipe(msappRequire({
         src: {
             npm: path.resolve(process.cwd(), "../node_modules"),

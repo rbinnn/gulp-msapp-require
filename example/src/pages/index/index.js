@@ -1,7 +1,7 @@
-var _ = require("lodash")
+var at = require("lodash/at")
 
 Page({
     onLoad() {
-        console.log(_)
+        console.log(at)
     }
 })

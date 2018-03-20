@@ -1,9 +1,9 @@
-var _ = require("lodash")
+var curryN = require('lodash/fp/curryN');
 var login = require("custom/login")
 
 App({
     onLoad: function() {
-        console.log(_)
+        console.log(curryN)
         login()
     }
 })

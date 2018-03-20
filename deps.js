@@ -19,9 +19,6 @@ var defaultConfig = {
 }
 
 var BASE_DIR = process.cwd()
-var pkgJson = fs.readJsonSync(path.resolve(BASE_DIR, "./package.json"))
-var dependencies = _.get(pkgJson, "dependencies")
-var devpendencies = _.get(pkgJson, "devpendencies")
 
 function Deps(options) {
     this.depends = []
@@ -111,7 +108,11 @@ Deps.prototype.pushDeps = function(dep, origin) {
             origin: origin
         })
     }
-    dep = dep.replace(/^\.\//, "../") // ./index.js => ../index.js
+    if( /^\.\//.test(dep) ) { // ./index.js => ../index.js
+        dep = dep.replace(/^\.\//, "../")
+    }else if( /^\.\.\//.test(dep) ) { // ../index.js => ../../index.js
+        dep = "../" + dep
+    }
     relativeDep = path.resolve(origin, dep)
     if( !config.ignoreRelative && config.dist.root ) {
         this.findDeps(relativeDep, path.resolve(config.dist.root, dep))
@@ -127,6 +128,9 @@ Deps.prototype.getDeps = function() {
 Deps.prototype.parseDeps = function() {
     var config = this.config
     var self = this
+    var pkgJson = fs.readJsonSync(path.resolve(config.src.npm, "../package.json"))
+    var dependencies = _.get(pkgJson, "dependencies")
+    var devpendencies = _.get(pkgJson, "devpendencies")
     this.depends.forEach(function(item) {
         var dep = item.dep
         var depDirName = self.getNpmDirName(dep)
