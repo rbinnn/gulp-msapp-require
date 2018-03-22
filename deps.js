@@ -1,4 +1,4 @@
-var _ = require("lodash");
+var _ = require("lodash")
 var t = require("babel-types")
 var babylon = require("babylon")
 var traverse = require("babel-traverse").default
@@ -128,13 +128,20 @@ Deps.prototype.getDeps = function() {
 Deps.prototype.parseDeps = function() {
     var config = this.config
     var self = this
-    var pkgJson = fs.readJsonSync(path.resolve(config.src.npm, "../package.json"))
+    var pkgJson
+    if( config.src.npm ) {
+        try {
+            pkgJson = fs.readJsonSync(path.resolve(config.src.npm, "../package.json"))
+        }catch(e) { 
+            console.error("Package.json Read Error", e)
+        }
+    }
     var dependencies = _.get(pkgJson, "dependencies")
     var devpendencies = _.get(pkgJson, "devpendencies")
     this.depends.forEach(function(item) {
         var dep = item.dep
         var depDirName = self.getNpmDirName(dep)
-        if( _.has(dependencies, depDirName) || _.has(devpendencies, depDirName) ) {
+        if( pkgJson && _.has(dependencies, depDirName) || _.has(devpendencies, depDirName) ) {
             return self.pullNpmDep(item)
         }
         if( !/\.js$/.test(dep) ) {
@@ -166,7 +173,14 @@ Deps.prototype.pullNpmDep = function(depObj) {
     var config = this.config
     var pkgDir = path.resolve(config.src.npm, depDirName)
     var distDir = path.resolve(config.dist.npm, depDirName)
-    var pkgJson = fs.readJsonSync(path.resolve(pkgDir, "./package.json"))
+    var pkgJson
+    if( config.src.npm ) {
+        try{
+            pkgJson  = fs.readJsonSync(path.resolve(pkgDir, "./package.json"))
+        }catch(e) {
+            console.error("Package.json Read Error", e)
+        }
+    }
     var filename = "./index.js"
 
     if( dep !== depDirName ) {
@@ -282,7 +296,7 @@ Deps.prototype.transfrom = function(pth) {
 
 // 解决windows系统下路径的反斜杠问题
 function unix(url) {
-    return url.replace(/\\/g, "/");
+    return url.replace(/\\/g, "/")
 }
 
 module.exports = Deps

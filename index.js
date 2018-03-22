@@ -28,7 +28,7 @@ function getManifestFile(opts) {
                     path: opts.manifest
                 })
             }
-            throw err;
+            throw err
         })
 }
 
