@@ -9,14 +9,23 @@ var Vinyl = require('vinyl')
 
 var defaultConfig = {
     entry: "./index.js",
-    src: {
-        npm: path.resolve(process.cwd(), "./node_modules"),
-        custom: path.resolve(process.cwd(), "../../")
+    // src: {
+    //     npm: path.resolve(process.cwd(), "./node_modules"),
+    //     custom: path.resolve(process.cwd(), "../../")
+    // },
+    // dist: {
+    //     root: "./dist/",
+    //     npm: "./dist/msapp_modules",
+    //     custom: "./dist/custom_modules"
+    // },
+
+    npm: {
+        src: path.resolve(process.cwd(), "./node_modules"),
+        dist: "./dist/msapp_modules"
     },
-    dist: {
-        root: "./dist/",
-        npm: "./dist/msapp_modules",
-        custom: "./dist/custom_modules"
+    custom: {
+        src: path.resolve(process.cwd(), "./custom"),
+        dist: "./dist/custom_modules"
     }
 }
 

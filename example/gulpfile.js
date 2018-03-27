@@ -6,13 +6,13 @@ gulp.task("release", function() {
     gulp.src(["src/**/*"])
     .pipe(gulp.dest("./dist"))
     .pipe(msappRequire({
-        src: {
-            npm: path.resolve(process.cwd(), "../node_modules"),
-            custom: path.resolve(process.cwd(), "./")
+        npm: {
+            src: path.resolve(process.cwd(), "../node_modules"),
+            dist: "./dist/msapp_modules",
         },
-        dist: {
-            npm: "./dist/msapp_modules",
-            custom: "./dist/custom_modules"
+        custom: {
+            src: path.resolve(process.cwd(), "./"),
+            dist: "./dist/custom_modules"
         }
     }))
     .pipe(gulp.dest("./dist"))
@@ -22,13 +22,13 @@ gulp.task("release", function() {
 gulp.task("release-manifest", function() {
     gulp.src(["src/**/*.js"])
     .pipe(msappRequire.manifest({
-        src: {
-            npm: path.resolve(process.cwd(), "../node_modules"),
-            custom: path.resolve(process.cwd(), "./")
+        npm: {
+            src: path.resolve(process.cwd(), "../node_modules"),
+            dist: "./manifest_dist/msapp_modules"
         },
-        dist: {
-            npm: "./manifest_dist/msapp_modules",
-            custom: "./manifest_dist/custom_modules"
+        custom: {
+            src: path.resolve(process.cwd(), "./"),
+            dist: "./manifest_dist/custom_modules"
         }
     }))
     .pipe(gulp.dest("./manifest_dist"))

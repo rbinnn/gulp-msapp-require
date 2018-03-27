@@ -9,11 +9,9 @@ var fs = require("fs-extra")
 
 var defaultConfig = {
     entry: "index.js",
-    src: {
-        npm: "/"
-    },
-    dist: {
-        npm: "/"
+    npm: {
+        src: "/",
+        dist: "/"
     },
     ignoreRelative: true // 忽略相对路径的依赖
 }
@@ -31,7 +29,7 @@ function Deps(options) {
 Deps.prototype.processConfig = function(config) {
     var obj = {};
     _.each(
-        ["entry", "src.npm", "src.custom", "dist.npm", "dist.custom", "dist.root"],
+        ["entry", "npm.src", "custom.src", "npm.dist", "custom.dist", "base"],
         function(key) {
             var val = _.get(config, key)
             if( val && !path.isAbsolute(val) ) {
@@ -84,7 +82,8 @@ Deps.prototype.findDeps = function(origin, dist) {
             }else if ( t.isCallExpression(path) && 
                 t.isIdentifier(path.node.callee) && 
                 path.node.callee.name === 'require' &&
-                path.node.arguments.length === 1
+                path.node.arguments.length === 1 &&
+                t.isStringLiteral(path.node.arguments[0])
             ) {
                 self.pushDeps(
                     path.node.arguments[0].value, 
@@ -108,14 +107,16 @@ Deps.prototype.pushDeps = function(dep, origin) {
             origin: origin
         })
     }
+    
     if( /^\.\//.test(dep) ) { // ./index.js => ../index.js
         dep = dep.replace(/^\.\//, "../")
     }else if( /^\.\.\//.test(dep) ) { // ../index.js => ../../index.js
         dep = "../" + dep
     }
     relativeDep = path.resolve(origin, dep)
-    if( !config.ignoreRelative && config.dist.root ) {
-        this.findDeps(relativeDep, path.resolve(config.dist.root, dep))
+    if( !config.ignoreRelative && config.base ) {
+        relativeDepDist = path.resolve(config.base, path.relative(config.entry, relativeDep))
+        this.findDeps(relativeDep, relativeDepDist)
     }/*else {
         this.findDeps(relativeDep)
     }*/
@@ -129,9 +130,9 @@ Deps.prototype.parseDeps = function() {
     var config = this.config
     var self = this
     var pkgJson
-    if( config.src.npm ) {
+    if( config.npm.src ) {
         try {
-            pkgJson = fs.readJsonSync(path.resolve(config.src.npm, "../package.json"))
+            pkgJson = fs.readJsonSync(path.resolve(config.npm.src, "../package.json"))
         }catch(e) { 
             console.error("Package.json Read Error", e)
         }
@@ -147,7 +148,7 @@ Deps.prototype.parseDeps = function() {
         if( !/\.js$/.test(dep) ) {
             item.dep = dep + ".js"
         }
-        if( config.src.custom && fs.existsSync(path.resolve(config.src.custom, item.dep)) ) {
+        if( config.custom.src && fs.existsSync(path.resolve(config.custom.src, item.dep)) ) {
             return self.pullCustomDep(item)
         }
     })
@@ -161,7 +162,7 @@ Deps.prototype.getNpmDirName = function(dep) {
 Deps.prototype.pullCustomDep = function(depObj) {
     var dep = depObj.dep
     var config = this.config
-    var entry = unix(path.resolve(config.src.custom, dep))
+    var entry = unix(path.resolve(config.custom.src, dep))
     var paths = entry.split("/")
     
     return this.saveCustomDep(entry, depObj)
@@ -171,10 +172,10 @@ Deps.prototype.pullNpmDep = function(depObj) {
     var dep = depObj.dep
     var depDirName = this.getNpmDirName(dep)
     var config = this.config
-    var pkgDir = path.resolve(config.src.npm, depDirName)
-    var distDir = path.resolve(config.dist.npm, depDirName)
+    var pkgDir = path.resolve(config.npm.src, depDirName)
+    var distDir = path.resolve(config.npm.dist, depDirName)
     var pkgJson
-    if( config.src.npm ) {
+    if( config.npm.src ) {
         try{
             pkgJson  = fs.readJsonSync(path.resolve(pkgDir, "./package.json"))
         }catch(e) {
@@ -188,7 +189,7 @@ Deps.prototype.pullNpmDep = function(depObj) {
         filename = /\.js$/.test(filename) ? filename : filename + ".js"        
     }else if( _.get(pkgJson, "main").indexOf(dep) > -1 ){
         filename = _.get(pkgJson, "main")  
-    }else if( fs.existsSync(path.resolve(config.src.npm, dep, "./index.js")) ) {
+    }else if( fs.existsSync(path.resolve(config.npm.src, dep, "./index.js")) ) {
         filename = "./index.js"    
     }
     
@@ -204,13 +205,11 @@ Deps.prototype.saveNpmDep = function(pkgDir, distDir, depObj, filename) {
 
     var nextDep = new Deps({
         entry: src,
-        src: {
-            npm: path.resolve(pkgDir, "./node_modules")
+        npm: {
+            src: path.resolve(pkgDir, "./node_modules"),
+            dist: path.resolve(distDir, "./node_modules")
         },
-        dist: {
-            npm: path.resolve(distDir, "./node_modules"),
-            root: path.resolve(config.dist.npm, dep)
-        },
+        base: path.resolve(config.npm.dist, dep),
         ignoreRelative: false
     })
     nextDep.parseDeps()
@@ -230,14 +229,13 @@ Deps.prototype.saveNpmDep = function(pkgDir, distDir, depObj, filename) {
 Deps.prototype.saveCustomDep = function(src, depObj) {
     var config = this.config
     var dep = depObj.dep
-    var dist = path.resolve(config.dist.custom, dep)
+    var dist = path.resolve(config.custom.dist, dep)
     var currentDir = path.resolve(depObj.origin, "../")
     var nextDep = new Deps({
         entry: src,
-        src: _.extend({}, config.src),
-        dist: _.extend({}, config.dist, {
-            root: path.resolve(config.dist.custom, dep)
-        }),
+        npm: _.extend({}, config.npm),
+        custom: _.extend({}, config.custom),
+        base: path.resolve(config.custom.dist, dep),
         ignoreRelative: false
     })
     nextDep.parseDeps()

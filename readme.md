@@ -43,14 +43,14 @@ gulp.task("release", function() {
 gulp.task("release-manifest", function() {
     gulp.src(["src/**/*.js"])
     .pipe(msappRequire.manifest({
-        src: {
-            npm: path.resolve(process.cwd(), "./node_modules"),
-            custom: path.resolve(process.cwd(), "../")
+        npm: {
+            src: path.resolve(process.cwd(), "../node_modules"),
+            dist: "./manifest_dist/msapp_modules"
         },
-        dist: {
-            npm: "./dist/msapp_modules",
-            custom: "./dist/custom_modules"
-        },
+        custom: {
+            src: path.resolve(process.cwd(), "./"),
+            dist: "./manifest_dist/custom_modules"
+        }
         manifest: "msapp-require-manifest.json"
     }))
     .pipe(gulp.dest("./dist"))
@@ -70,31 +70,31 @@ Analyze the npm module or custom-common module that the code relies on, and then
 
 Type: `Object`
 
-##### options.src
+##### options.npm
 Type: `Object`
 
-###### options.src.npm 
+###### options.npm.src 
 npm module installation path
 
 Type: `String`<br>
 Default: `path.resolve(process.cwd(), "./node_modules")`
 
-###### options.src.custom
-custom-common module path
-
-Type: `String`<br>
-Default: `process.cwd()`
-
-##### options.dist
-Type: `Object`
-
-###### options.dist.npm
+###### options.npm.dist
 After building, the npm module storage path
 
 Type: `String`<br>
 Default: `path.resolve(process.cwd(), "./dist/msapp_modules")`
 
-###### options.dist.custom
+##### options.custom
+Type: `Object`
+
+###### options.custom.src
+custom-common module path
+
+Type: `String`<br>
+Default: `process.cwd()`
+
+###### options.custom.dist
 After building, the custom-common module storage path
 
 Type: `String`<br>
