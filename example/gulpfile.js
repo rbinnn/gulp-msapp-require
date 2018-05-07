@@ -5,31 +5,40 @@ var path = require("path")
 gulp.task("release", function() {
     gulp.src(["src/**/*"])
     .pipe(gulp.dest("./dist"))
-    .pipe(msappRequire({
-        npm: {
-            src: path.resolve(process.cwd(), "../node_modules"),
-            dist: "./dist/msapp_modules",
-        },
-        custom: {
-            src: path.resolve(process.cwd(), "./"),
-            dist: "./dist/custom_modules"
-        }
-    }))
-    .pipe(gulp.dest("./dist"))
+    .on("end", function() {
+        gulp.src(["dist/**/*"])
+        .pipe(msappRequire({
+            output: path.resolve(__dirname, "./dist/common"),
+            resolve: {
+                extensions: [".js", ".json"],
+                modules: [path.resolve(__dirname, "./custom"), path.resolve(__dirname, "../node_modules")],
+                alias: {
+                    utils: "./test/a/index.js",
+                    math: "sub/math"
+                }
+            }
+        }))
+        .pipe(gulp.dest("./dist"))
+    })
 })
 
-
-gulp.task("release-manifest", function() {
-    gulp.src(["src/**/*.js"])
-    .pipe(msappRequire.manifest({
-        npm: {
-            src: path.resolve(process.cwd(), "../node_modules"),
-            dist: "./manifest_dist/msapp_modules"
-        },
-        custom: {
-            src: path.resolve(process.cwd(), "./"),
-            dist: "./manifest_dist/custom_modules"
-        }
-    }))
-    .pipe(gulp.dest("./manifest_dist"))
+gulp.task("manifest-release", function() {
+    gulp.src(["src/**/*"])
+    .pipe(gulp.dest("./cdist"))
+    .on("end", function() {
+        gulp.src(["cdist/**/*"])
+        .pipe(msappRequire.manifest({
+            output: path.resolve(__dirname, "./cdist/common"),
+            resolve: {
+                extensions: [".js", ".json"],
+                modules: [path.resolve(__dirname, "./custom"), path.resolve(__dirname, "../node_modules")],
+                alias: {
+                    utils: "./test/a/index.js",
+                    math: "sub/math"
+                }
+            },
+            manifest: "msapp-require-manifest.json"
+        }))
+        .pipe(gulp.dest("./cdist"))
+    })
 })

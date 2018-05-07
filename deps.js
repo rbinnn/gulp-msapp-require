@@ -3,18 +3,14 @@ var t = require("babel-types")
 var babylon = require("babylon")
 var traverse = require("babel-traverse").default
 var generator = require("babel-generator").default
+var {
+    NodeJsInputFileSystem,
+    CachedInputFileSystem,
+    ResolverFactory
+} = require("enhanced-resolve");
 
 var path = require("path")
 var fs = require("fs-extra")
-
-var defaultConfig = {
-    entry: "index.js",
-    npm: {
-        src: "/",
-        dist: "/"
-    },
-    ignoreRelative: true // 忽略相对路径的依赖
-}
 
 var BASE_DIR = process.cwd()
 
@@ -22,40 +18,67 @@ function Deps(options) {
     this.depends = []
     this.pulledList = []
     this.map = {}
-    this.config = this.processConfig(options || {})
-    this.findDeps(this.config.entry)
+    this.config = options
+    this.resolver = ResolverFactory.createResolver(_.extend({
+        fileSystem: new CachedInputFileSystem(new NodeJsInputFileSystem(), 4000),
+        useSyncFileSystemCalls: true,
+    }, options.resolve))
+    this.findDeps(unix(options.entry))
 }
 
-Deps.prototype.processConfig = function(config) {
-    var obj = {};
-    _.each(
-        ["entry", "npm.src", "custom.src", "npm.dist", "custom.dist", "base"],
-        function(key) {
-            var val = _.get(config, key)
-            if( val && !path.isAbsolute(val) ) {
-                _.set(obj, key, unix(path.resolve(BASE_DIR, val)))
-            }else if( val ) {
-                _.set(obj, key, unix(val))
-            }
+const REGEXP_NOT_MODULE = /^\.$|^\.[\\\/]|^\.\.$|^\.\.[\/\\]|^\/|^[A-Z]:[\\\/]/i;
+Deps.prototype.isModule = function(path) {
+    return !REGEXP_NOT_MODULE.test(path)
+}
+
+Deps.prototype.addExtname = function(dep) {
+    var extensions = _.get(this.config, "resolve.extensions")
+    var pth = dep
+    for(var i = 0, len = extensions.length; i < len - 1; i++ ) {
+        if( dep.indexOf(extensions[i]) > -1 ) {
+            break
         }
-    )
-    return _.extend({}, defaultConfig, config, obj)
+        try {
+            if( !fs.accessSync(dep + extensions[i]) ) {
+                pth = dep + extensions[i]
+                break
+            }
+        }catch(e) {
+            console.log(e)
+        }
+    }
+    return pth
 }
 
-Deps.prototype.isAbsolute = function(path) {
-    // 不是 ./ 或者 ../ 开头的路径
-    return !/^\.{1,2}\//.test(path)
+Deps.prototype.transferExtname = function(src, dist) {
+    var extname = path.extname(src)
+    if( dist.indexOf(extname) > -1 ) {
+        return dist
+    }
+    return dist + extname
 }
 
-Deps.prototype.findDeps = function(origin, dist) {
-    if( !/\.js$/.test(origin) ) {
-        origin = origin + ".js"
+Deps.prototype.transferAlias = function(dep, origin) {
+    var alias = _.get(this.config, "resolve.alias")
+    var newDep = dep
+    var transfer = _.find(alias, function(val, key) {
+        if( /\$$/.test(key) && dep === key.substr(0, key.length - 1)) {
+            newDep = val
+            return true
+        }
+        if( !/\$$/.test(key) && dep.indexOf(key) === 0 ) {
+            newDep = val + dep.substr(key.length, dep.length - key.length)
+            return true
+        }
+    })
+    return {
+        dep: newDep,
+        transfer: !!transfer
     }
-    if( dist && !/\.js$/.test(dist) ) {
-        dist = dist + ".js"
-    }
-    origin = unix(origin)
-    if(  _.indexOf(this.pulledList, origin) > -1 ) {
+}
+
+Deps.prototype.findDeps = function(origin, isModule) {
+    if(  _.indexOf(this.pulledList, origin) > -1 ) { // 解析过，忽略
         return
     }else {
         this.pulledList.push(origin)
@@ -77,7 +100,8 @@ Deps.prototype.findDeps = function(origin, dist) {
             if ( t.isImportDeclaration(path) ) {
                 self.pushDeps(
                     path.node.source.value, 
-                    origin
+                    origin,
+                    isModule
                 )
             }else if ( t.isCallExpression(path) && 
                 t.isIdentifier(path.node.callee) && 
@@ -87,39 +111,34 @@ Deps.prototype.findDeps = function(origin, dist) {
             ) {
                 self.pushDeps(
                     path.node.arguments[0].value, 
-                    origin
+                    origin,
+                    isModule
                 )
             }
         }
     })
-    if( dist ) {
-        fs.copySync(origin, dist)
-    }
 }
 
-Deps.prototype.pushDeps = function(dep, origin) {
+Deps.prototype.pushDeps = function(dep, origin, isModule) {
     var config = this.config
-    var relativeDep, relativeDepDist
-    if( this.isAbsolute(dep) ) {
-        return this.depends.push({
-            dep: dep,
-            originDep: dep,
-            origin: origin
-        })
-    }
+    var src = this.resolver.resolveSync(
+        {}, path.dirname(origin), dep
+    )
+    var transferInfo = this.transferAlias(dep, origin)
+    var _isModule = this.isModule(transferInfo.dep)
+    var _isModuleExtend = !!(_isModule || isModule)
+    src = unix(this.addExtname(src))
     
-    if( /^\.\//.test(dep) ) { // ./index.js => ../index.js
-        dep = dep.replace(/^\.\//, "../")
-    }else if( /^\.\.\//.test(dep) ) { // ../index.js => ../../index.js
-        dep = "../" + dep
-    }
-    relativeDep = path.resolve(origin, dep)
-    if( !config.ignoreRelative && config.base ) {
-        relativeDepDist = path.resolve(config.base, path.relative(config.entry, relativeDep))
-        this.findDeps(relativeDep, relativeDepDist)
-    }/*else {
-        this.findDeps(relativeDep)
-    }*/
+    this.depends.push({
+        key: dep, // 源文件的引用
+        src: src, // 源文件的引用的绝对路径
+        dep:  transferInfo.dep, // 源文件的alias转换过后的引用
+        origin: unix(origin), // 源文件的绝对路径
+        transfer: transferInfo.transfer, // 是否成功匹配alias规则
+        module:_isModuleExtend, // 源文件的引用是否为模块（继承源文件）
+        _module: _isModule // 源文件的引用是否为模块
+    })
+    this.findDeps(src, _isModuleExtend)
 }
 
 Deps.prototype.getDeps = function() {
@@ -127,128 +146,63 @@ Deps.prototype.getDeps = function() {
 }
 
 Deps.prototype.parseDeps = function() {
-    var config = this.config
-    var self = this
-    var pkgJson
-    if( config.npm.src ) {
-        try {
-            pkgJson = fs.readJsonSync(path.resolve(config.npm.src, "../package.json"))
-        }catch(e) { 
-            console.error("Package.json Read Error", e)
-        }
-    }
-    var dependencies = _.get(pkgJson, "dependencies")
-    var devpendencies = _.get(pkgJson, "devpendencies")
+    var that = this
     this.depends.forEach(function(item) {
-        var dep = item.dep
-        var depDirName = self.getNpmDirName(dep)
-        if( pkgJson && _.has(dependencies, depDirName) || _.has(devpendencies, depDirName) ) {
-            return self.pullNpmDep(item)
+        if( !item.transfer && !item.module ) { // 没有用alias，不是外部模块, 直接忽略了
+            return 
         }
-        if( !/\.js$/.test(dep) ) {
-            item.dep = dep + ".js"
+        if( item.transfer && !item.module ) { // 用了alias,不是外部模块
+            that.saveAlias(item)
+            return
         }
-        if( config.custom.src && fs.existsSync(path.resolve(config.custom.src, item.dep)) ) {
-            return self.pullCustomDep(item)
-        }
+        that.save(item)
     })
 }
 
-Deps.prototype.getNpmDirName = function(dep) {
-    if( !dep ) return ""
-    return dep.split("/")[0]
-}
-
-Deps.prototype.pullCustomDep = function(depObj) {
-    var dep = depObj.dep
-    var config = this.config
-    var entry = unix(path.resolve(config.custom.src, dep))
-    var paths = entry.split("/")
-    
-    return this.saveCustomDep(entry, depObj)
-}
-
-Deps.prototype.pullNpmDep = function(depObj) {
-    var dep = depObj.dep
-    var depDirName = this.getNpmDirName(dep)
-    var config = this.config
-    var pkgDir = path.resolve(config.npm.src, depDirName)
-    var distDir = path.resolve(config.npm.dist, depDirName)
-    var pkgJson
-    if( config.npm.src ) {
-        try{
-            pkgJson  = fs.readJsonSync(path.resolve(pkgDir, "./package.json"))
-        }catch(e) {
-            console.error("Package.json Read Error", e)
+Deps.prototype.updateDeps = function(oldOrigin, newOrigin) {
+    this.depends = this.depends.map(function(dep) {
+        if( dep.origin === oldOrigin ) {
+            dep.origin = newOrigin
         }
-    }
-    var filename = "./index.js"
-
-    if( dep !== depDirName ) {
-        filename = dep.slice(depDirName.length + 1)
-        filename = /\.js$/.test(filename) ? filename : filename + ".js"        
-    }else if( _.get(pkgJson, "main").indexOf(dep) > -1 ){
-        filename = _.get(pkgJson, "main")  
-    }else if( fs.existsSync(path.resolve(config.npm.src, dep, "./index.js")) ) {
-        filename = "./index.js"    
-    }
-    
-    return this.saveNpmDep(pkgDir, distDir, depObj, filename)
+        return dep
+    })
 }
 
-Deps.prototype.saveNpmDep = function(pkgDir, distDir, depObj, filename) {
+Deps.prototype.save = function(depObj) {
     var config = this.config
-    var dep = depObj.dep
-    var src = path.resolve(pkgDir, filename)
-    var dist = path.resolve(distDir, filename)
-    var currentDir = path.resolve(depObj.origin, "../")
-
-    var nextDep = new Deps({
-        entry: src,
-        npm: {
-            src: path.resolve(pkgDir, "./node_modules"),
-            dist: path.resolve(distDir, "./node_modules")
-        },
-        base: path.resolve(config.npm.dist, dep),
-        ignoreRelative: false
-    })
-    nextDep.parseDeps()
-
+    var currentDir = path.dirname(depObj.origin)
+    var src = depObj.src
+    var dist
+    if( depObj._module ) {
+        dist = this.resolve(config.output, depObj.dep)
+    }else {
+        dist = this.resolve(
+            config.output, 
+            this.resolve(
+                path.dirname(depObj.origin), depObj.dep
+            )
+        )
+    }
+    dist = this.transferExtname(src, dist)
+    this.updateDeps(src, dist)
     try {
         fs.copySync(src, dist)
-        this.collectMap(
-            unix(depObj.origin), 
-            depObj.originDep, 
-            unix(path.relative(currentDir, dist))
-        )
     }catch(e) {
         console.error(e)
     }
+    this.collectMap(        
+        depObj.origin,
+        depObj.key, 
+        unix(path.relative(currentDir, dist))
+    )
 }
 
-Deps.prototype.saveCustomDep = function(src, depObj) {
-    var config = this.config
-    var dep = depObj.dep
-    var dist = path.resolve(config.custom.dist, dep)
-    var currentDir = path.resolve(depObj.origin, "../")
-    var nextDep = new Deps({
-        entry: src,
-        npm: _.extend({}, config.npm),
-        custom: _.extend({}, config.custom),
-        base: path.resolve(config.custom.dist, dep),
-        ignoreRelative: false
-    })
-    nextDep.parseDeps()
-    try {
-        fs.copySync(src, dist)
-        this.collectMap(        
-            unix(depObj.origin), 
-            depObj.originDep, 
-            unix(path.relative(currentDir, dist))
-        )
-    }catch(e) {
-        console.error(e)
-    }
+Deps.prototype.saveAlias = function(depObj) {
+    this.collectMap(
+        depObj.origin,
+        depObj.key, 
+        depObj.dep
+    )
 }
 
 Deps.prototype.collectMap = function(origin, key, val) {
@@ -256,13 +210,13 @@ Deps.prototype.collectMap = function(origin, key, val) {
     if( !map[origin] ) {
         map[origin] = {}
     }
-    if( this.isAbsolute(val) ) {
+    if( this.isModule(val) ) {
         val = "./" + val
     }
     map[origin][key] = val
 }
 
-Deps.prototype.outputMap = function(dist) {
+Deps.prototype.outputMap = function() {
     return this.map
 }
 
@@ -292,6 +246,10 @@ Deps.prototype.transfrom = function(pth) {
     return generator(ast).code
 }
 
+Deps.prototype.resolve = function(base, part) {
+    return unix(path.resolve(base, part))
+}
+
 // 解决windows系统下路径的反斜杠问题
 function unix(url) {
     return url.replace(/\\/g, "/")
@@ -299,3 +257,4 @@ function unix(url) {
 
 module.exports = Deps
 module.exports.unix = unix
+module.exports.resolve = Deps.prototype.resolve

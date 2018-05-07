@@ -8,25 +8,8 @@ var vinylFile = require('vinyl-file')
 var Vinyl = require('vinyl')
 
 var defaultConfig = {
-    entry: "./index.js",
-    // src: {
-    //     npm: path.resolve(process.cwd(), "./node_modules"),
-    //     custom: path.resolve(process.cwd(), "../../")
-    // },
-    // dist: {
-    //     root: "./dist/",
-    //     npm: "./dist/msapp_modules",
-    //     custom: "./dist/custom_modules"
-    // },
-
-    npm: {
-        src: path.resolve(process.cwd(), "./node_modules"),
-        dist: "./dist/msapp_modules"
-    },
-    custom: {
-        src: path.resolve(process.cwd(), "./custom"),
-        dist: "./dist/custom_modules"
-    }
+    resolve: {},
+    base: "/"
 }
 
 function getManifestFile(opts) {
@@ -100,6 +83,7 @@ module.exports.manifest = function(options) {
         var entry = new Deps(config)
         entry.parseDeps()
         manifest = _.extend(manifest, entry.outputMap())
+        console.log(entry.outputMap())
         cb()
     }, function(cb) {
         if( _.keys(manifest).length === 0 ) {

@@ -8,21 +8,6 @@ Require npm module or custom-common module, for Wechat miniapp.
 npm install gulp-msapp-require --save-dev
 ```
 
-## Information
-<table>
-<tr>
-<td>Package</td><td>gulp-msapp-require</td>
-</tr>
-<tr>
-<td>Description</td>
-<td>Require module</td>
-</tr>
-<tr>
-<td>Node Version</td>
-<td>>= 0.10</td>
-</tr>
-</table>
-
 ## Usage
 
 
@@ -33,27 +18,45 @@ var msappRequire = require("gulp-msapp-require")
 
 // msappRequire(options)
 gulp.task("release", function() {
-    gulp.src("src/**/*")
-    .pipe(gulp.dest("./dist"))
-    .pipe(msappRequire())
-    .pipe(gulp.dest("./dist"))
+    gulp.src(["src/**/*"])
+    .pipe(gulp.dest("./dist")) // gulp-msapp-require will change the origin file's dependency path, the best way is building in a new folder
+    .on("end", function() {
+        gulp.src(["dist/**/*"])
+        .pipe(msappRequire({
+            output: path.resolve(__dirname, "./dist/common"),
+            resolve: {
+                extensions: [".js", ".json"],
+                modules: [path.resolve(__dirname, "./custom"), path.resolve(__dirname, "../node_modules")],
+                alias: {
+                    utils: "./test/a/index.js",
+                    math: "sub/math"
+                }
+            }
+        }))
+        .pipe(gulp.dest("./dist"))
+    })
 })
 
 // msappRequire.manifest(options)
-gulp.task("release-manifest", function() {
-    gulp.src(["src/**/*.js"])
-    .pipe(msappRequire.manifest({
-        npm: {
-            src: path.resolve(process.cwd(), "../node_modules"),
-            dist: "./manifest_dist/msapp_modules"
-        },
-        custom: {
-            src: path.resolve(process.cwd(), "./"),
-            dist: "./manifest_dist/custom_modules"
-        }
-        manifest: "msapp-require-manifest.json"
-    }))
-    .pipe(gulp.dest("./dist"))
+gulp.task("manifest-release", function() {
+    gulp.src(["src/**/*"])
+    .pipe(gulp.dest("./cdist"))
+    .on("end", function() {
+        gulp.src(["cdist/**/*"])
+        .pipe(msappRequire.manifest({
+            output: path.resolve(__dirname, "./cdist/common"),
+            resolve: {
+                extensions: [".js", ".json"],
+                modules: [path.resolve(__dirname, "./custom"), path.resolve(__dirname, "../node_modules")],
+                alias: {
+                    utils: "./test/a/index.js",
+                    math: "sub/math"
+                }
+            },
+            manifest: "msapp-require-manifest.json"
+        }))
+        .pipe(gulp.dest("./cdist"))
+    })
 })
 ```
 
@@ -70,38 +73,29 @@ Analyze the npm module or custom-common module that the code relies on, and then
 
 Type: `Object`
 
-##### options.npm
+##### options.output
+Type: `String`<br>
+
+##### options.resolve
 Type: `Object`
 
-###### options.npm.src 
-npm module installation path
-
-Type: `String`<br>
-Default: `path.resolve(process.cwd(), "./node_modules")`
-
-###### options.npm.dist
-After building, the npm module storage path
-
-Type: `String`<br>
-Default: `path.resolve(process.cwd(), "./dist/msapp_modules")`
-
-##### options.custom
-Type: `Object`
-
-###### options.custom.src
-custom-common module path
-
-Type: `String`<br>
-Default: `process.cwd()`
-
-###### options.custom.dist
-After building, the custom-common module storage path
-
-Type: `String`<br>
-Default: `path.resolve(process.cwd(), "./dist/custom_modules")`
-
-##### options.manifest
-After building, the dependency mapping storage json file
-
-Type: `String`<br>
-Default: `msapp-require-manifest.json`
+| Field                    | Default                     | Description                                                                        |
+| ------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
+| alias                    | []                          | A list of module alias configurations or an object which maps key to value |
+| aliasFields              | []                          | A list of alias fields in description files |
+| cacheWithContext         | true                        | If unsafe cache is enabled, includes `request.context` in the cache key  |
+| descriptionFiles         | ["package.json"]            | A list of description files to read from |
+| enforceExtension         | false                       | Enforce that a extension from extensions must be used |
+| enforceModuleExtension   | false                       | Enforce that a extension from moduleExtensions must be used |
+| extensions               | [".js", ".json", ".node"]   | A list of extensions which should be tried for files |
+| mainFields               | ["main"]                    | A list of main fields in description files |
+| mainFiles                | ["index"]                   | A list of main files in directories |
+| modules                  | ["node_modules"]            | A list of directories to resolve modules from, can be absolute path or folder name |
+| unsafeCache              | false                       | Use this cache object to unsafely cache the successful requests |
+| plugins                  | []                          | A list of additional resolve plugins which should be applied |
+| symlinks                 | true                        | Whether to resolve symlinks to their symlinked location |
+| cachePredicate           | function() { return true }; | A function which decides whether a request should be cached or not. An object is passed to the function with `path` and `request` properties. |
+| moduleExtensions         | []                          | A list of module extensions which should be tried for modules |
+| resolveToContext         | false                       | Resolve to a context instead of a file |
+| fileSystem               |                             | The file system which should be used |
+| resolver                 | undefined                   | A prepared Resolver to which the plugins are attached |

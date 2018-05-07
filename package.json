@@ -1,6 +1,6 @@
 {
   "name": "gulp-msapp-require",
-  "version": "2.0.0",
+  "version": "3.0.1",
   "description": "Require npm module or common module, for Wechat miniapp",
   "main": "index.js",
   "author": "rbinwu",
@@ -15,6 +15,7 @@
     "babel-traverse": "^6.26.0",
     "babel-types": "^6.26.0",
     "babylon": "^6.18.0",
+    "enhanced-resolve": "^4.0.0",
     "fs-extra": "^5.0.0",
     "lodash": "^4.17.5",
     "plugin-error": "^1.0.1",

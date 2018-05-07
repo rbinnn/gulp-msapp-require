@@ -1,5 +1,5 @@
-var at = require("lodash/at")
 
+var at = require("lodash/at")
 Page({
     onLoad() {
         console.log(at)
