@@ -91,9 +91,15 @@ Deps.prototype.findDeps = function(origin, isModule) {
         console.error(e)
         return
     }
-    var ast = babylon.parse(code, {
-        sourceType: "module"
-    })
+    var ast
+    try{
+        ast = babylon.parse(code, {
+            sourceType: "module"
+        })
+    }catch(e) {
+        console.log("Parse Error in ",origin, "\n", e)
+        return
+    }
     var self = this
     traverse(ast, {
         enter: function(path) {
