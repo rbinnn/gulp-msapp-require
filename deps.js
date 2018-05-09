@@ -127,9 +127,15 @@ Deps.prototype.findDeps = function(origin, isModule) {
 
 Deps.prototype.pushDeps = function(dep, origin, isModule) {
     var config = this.config
-    var src = this.resolver.resolveSync(
-        {}, path.dirname(origin), dep
-    )
+    var src 
+    try {
+        src = this.resolver.resolveSync(
+            {}, path.dirname(origin), dep
+        )
+    }catch(e) {
+        throw new Error("Can't resolve '" + dep + "' in " + origin)
+        return
+    }
     var transferInfo = this.transferAlias(dep, origin)
     var _isModule = this.isModule(transferInfo.dep)
     var _isModuleExtend = !!(_isModule || isModule)
