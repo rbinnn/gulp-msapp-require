@@ -9,7 +9,8 @@ var Vinyl = require('vinyl')
 
 var defaultConfig = {
     resolve: {},
-    base: "/"
+    output: process.cwd(),
+    cache: false
 }
 
 function getManifestFile(opts) {
@@ -45,6 +46,11 @@ module.exports = function(options) {
         var config = _.extend({}, defaultConfig, options, {
             entry: file.path
         })
+
+        if( config.cache && _.isBoolean(config.cache) ) {
+            config.cache = path.resolve(config.output, "./depends-cache.json")
+        }
+
         var entry = new Deps(config)
         entry.parseDeps()
         file.contents = new Buffer(entry.transfrom(file.path))
@@ -80,10 +86,14 @@ module.exports.manifest = function(options) {
         var config = _.extend({}, defaultConfig, options, {
             entry: file.path
         })
+
+        if( config.cache && _.isBoolean(config.cache) ) {
+            config.cache = path.resolve(config.output, "./depends-cache.json")
+        }
+        
         var entry = new Deps(config)
         entry.parseDeps()
         manifest = _.extend(manifest, entry.outputMap())
-        console.log(entry.outputMap())
         cb()
     }, function(cb) {
         if( _.keys(manifest).length === 0 ) {

@@ -31,7 +31,8 @@ gulp.task("release", function() {
                     utils: "./test/a/index.js",
                     math: "sub/math"
                 }
-            }
+            },
+            cache: true
         }))
         .pipe(gulp.dest("./dist"))
     })
@@ -53,6 +54,7 @@ gulp.task("manifest-release", function() {
                     math: "sub/math"
                 }
             },
+            cache: path.resolve(__dirname, "./src/depends.json"),
             manifest: "msapp-require-manifest.json"
         }))
         .pipe(gulp.dest("./cdist"))
@@ -99,3 +101,9 @@ Type: `Object`
 | resolveToContext         | false                       | Resolve to a context instead of a file |
 | fileSystem               |                             | The file system which should be used |
 | resolver                 | undefined                   | A prepared Resolver to which the plugins are attached |
+
+##### options.cache
+Type: `Boolean|String`
+Default: false<br>
+
+Using cache, building faster.

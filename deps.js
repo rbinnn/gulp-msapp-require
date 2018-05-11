@@ -12,8 +12,6 @@ var {
 var path = require("path")
 var fs = require("fs-extra")
 
-var BASE_DIR = process.cwd()
-
 function Deps(options) {
     this.depends = []
     this.pulledList = []
@@ -23,6 +21,15 @@ function Deps(options) {
         fileSystem: new CachedInputFileSystem(new NodeJsInputFileSystem(), 4000),
         useSyncFileSystemCalls: true,
     }, options.resolve))
+
+    this.cache = {}
+    if( options.cache ) {
+        try{
+            this.cache = JSON.parse(fs.readFileSync(options.cache, "utf-8"))
+        }catch(e) {
+            this.cache = {}
+        }
+    }
     this.findDeps(unix(options.entry))
 }
 
@@ -136,12 +143,11 @@ Deps.prototype.pushDeps = function(dep, origin, isModule) {
         throw new Error("Can't resolve '" + dep + "' in " + origin)
         return
     }
+    src = unix(this.addExtname(src))
     var transferInfo = this.transferAlias(dep, origin)
     var _isModule = this.isModule(transferInfo.dep)
     var _isModuleExtend = !!(_isModule || isModule)
-    src = unix(this.addExtname(src))
-    
-    this.depends.push({
+    var depObj = {
         key: dep, // 源文件的引用
         src: src, // 源文件的引用的绝对路径
         dep:  transferInfo.dep, // 源文件的alias转换过后的引用
@@ -149,7 +155,14 @@ Deps.prototype.pushDeps = function(dep, origin, isModule) {
         transfer: transferInfo.transfer, // 是否成功匹配alias规则
         module:_isModuleExtend, // 源文件的引用是否为模块（继承源文件）
         _module: _isModule // 源文件的引用是否为模块
-    })
+    }
+    
+    let inCache = this.checkInCache(src)
+    if( inCache ) {
+        this.saveFromCache(depObj, inCache)
+        return
+    }
+    this.depends.push(depObj)
     this.findDeps(src, _isModuleExtend)
 }
 
@@ -167,8 +180,13 @@ Deps.prototype.parseDeps = function() {
             that.saveAlias(item)
             return
         }
+        
         that.save(item)
     })
+}
+
+Deps.prototype.checkInCache = function(pth) {
+    return this.cache && this.cache[pth]
 }
 
 Deps.prototype.updateDeps = function(oldOrigin, newOrigin) {
@@ -202,7 +220,17 @@ Deps.prototype.save = function(depObj) {
     }catch(e) {
         console.error(e)
     }
+    this.cache[src] = dist
     this.collectMap(        
+        depObj.origin,
+        depObj.key, 
+        unix(path.relative(currentDir, dist))
+    )
+}
+
+Deps.prototype.saveFromCache = function(depObj, dist) {
+    var currentDir = path.dirname(depObj.origin)
+    this.collectMap(
         depObj.origin,
         depObj.key, 
         unix(path.relative(currentDir, dist))
@@ -229,7 +257,17 @@ Deps.prototype.collectMap = function(origin, key, val) {
 }
 
 Deps.prototype.outputMap = function() {
+    this.saveCache()
     return this.map
+}
+
+Deps.prototype.saveCache = function() {
+    if( !this.cache ) {
+        return
+    }
+    try {
+        fs.writeFileSync(this.config.cache, JSON.stringify(this.cache, null, 4))
+    }catch(e) {}
 }
 
 Deps.prototype.transfrom = function(pth) {
@@ -239,6 +277,7 @@ Deps.prototype.transfrom = function(pth) {
         sourceType: "module"
     })
     var mapping = this.map[pth] || {}
+    this.saveCache()
     traverse(ast, {
         enter: function(path) {
             if ( t.isImportDeclaration(path) && 

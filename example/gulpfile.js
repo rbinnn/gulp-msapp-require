@@ -16,7 +16,8 @@ gulp.task("release", function() {
                     utils: "./test/a/index.js",
                     math: "sub/math"
                 }
-            }
+            },
+            cache: true
         }))
         .pipe(gulp.dest("./dist"))
     })
@@ -37,7 +38,8 @@ gulp.task("manifest-release", function() {
                     math: "sub/math"
                 }
             },
-            manifest: "msapp-require-manifest.json"
+            manifest: "msapp-require-manifest.json",
+            cache: path.resolve(__dirname, "./src/cache.json")
         }))
         .pipe(gulp.dest("./cdist"))
     })
