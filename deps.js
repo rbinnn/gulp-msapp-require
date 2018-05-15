@@ -30,7 +30,10 @@ function Deps(options) {
             this.cache = {}
         }
     }
-    this.findDeps(unix(options.entry))
+    this.findDeps({
+        path: unix(options.entry),
+        file: options.file
+    })
 }
 
 const REGEXP_NOT_MODULE = /^\.$|^\.[\\\/]|^\.\.$|^\.\.[\/\\]|^\/|^[A-Z]:[\\\/]/i;
@@ -84,16 +87,22 @@ Deps.prototype.transferAlias = function(dep, origin) {
     }
 }
 
-Deps.prototype.findDeps = function(origin, isModule) {
+Deps.prototype.findDeps = function(opts, isModule) {
+    var origin = opts.path
     if(  _.indexOf(this.pulledList, origin) > -1 ) { // 解析过，忽略
         return
     }else {
         this.pulledList.push(origin)
     }
     
-    var code
+    var code, isVinyl
     try {
-        code = fs.readFileSync(origin, 'utf-8')
+        if( opts.file && Vinyl.isVinyl(opts.file) && !opts.file.isNull() ) {
+            code = opts.file.contents.toString()
+            isVinyl = true
+        }else {
+            code = fs.readFileSync(opts.path, 'utf-8')
+        }
     }catch(e) {
         console.error(e)
         return
@@ -114,7 +123,8 @@ Deps.prototype.findDeps = function(origin, isModule) {
                 self.pushDeps(
                     path.node.source.value, 
                     origin,
-                    isModule
+                    isModule,
+                    isVinyl
                 )
             }else if ( t.isCallExpression(path) && 
                 t.isIdentifier(path.node.callee) && 
@@ -125,14 +135,15 @@ Deps.prototype.findDeps = function(origin, isModule) {
                 self.pushDeps(
                     path.node.arguments[0].value, 
                     origin,
-                    isModule
+                    isModule,
+                    isVinyl
                 )
             }
         }
     })
 }
 
-Deps.prototype.pushDeps = function(dep, origin, isModule) {
+Deps.prototype.pushDeps = function(dep, origin, isModule, isVinyl) {
     var config = this.config
     var src 
     try {
@@ -154,7 +165,8 @@ Deps.prototype.pushDeps = function(dep, origin, isModule) {
         origin: unix(origin), // 源文件的绝对路径
         transfer: transferInfo.transfer, // 是否成功匹配alias规则
         module:_isModuleExtend, // 源文件的引用是否为模块（继承源文件）
-        _module: _isModule // 源文件的引用是否为模块
+        _module: _isModule, // 源文件的引用是否为模块
+        vinyl: isVinyl
     }
     
     let inCache = this.checkInCache(src)
@@ -163,7 +175,9 @@ Deps.prototype.pushDeps = function(dep, origin, isModule) {
         return
     }
     this.depends.push(depObj)
-    this.findDeps(src, _isModuleExtend)
+    this.findDeps({
+        path: src
+    }, _isModuleExtend)
 }
 
 Deps.prototype.getDeps = function() {
@@ -222,8 +236,7 @@ Deps.prototype.save = function(depObj) {
     }
     this.cache[src] = dist
     this.collectMap(        
-        depObj.origin,
-        depObj.key, 
+        depObj, 
         unix(path.relative(currentDir, dist))
     )
 }
@@ -231,21 +244,21 @@ Deps.prototype.save = function(depObj) {
 Deps.prototype.saveFromCache = function(depObj, dist) {
     var currentDir = path.dirname(depObj.origin)
     this.collectMap(
-        depObj.origin,
-        depObj.key, 
+        depObj, 
         unix(path.relative(currentDir, dist))
     )
 }
 
 Deps.prototype.saveAlias = function(depObj) {
     this.collectMap(
-        depObj.origin,
-        depObj.key, 
+        depObj,
         depObj.dep
     )
 }
 
-Deps.prototype.collectMap = function(origin, key, val) {
+Deps.prototype.collectMap = function(depObj, val) {
+    var origin = depObj.origin
+    var key = depObj.key
     var map = this.map
     if( !map[origin] ) {
         map[origin] = {}
@@ -254,6 +267,9 @@ Deps.prototype.collectMap = function(origin, key, val) {
         val = "./" + val
     }
     map[origin][key] = val
+    if( depObj.module && !depObj.vinyl ) {
+        this.transfrom(origin, true)
+    }
 }
 
 Deps.prototype.outputMap = function() {
@@ -270,7 +286,7 @@ Deps.prototype.saveCache = function() {
     }catch(e) {}
 }
 
-Deps.prototype.transfrom = function(pth) {
+Deps.prototype.transfrom = function(pth, sync) {
     pth = unix(pth)
     var code = fs.readFileSync(pth, 'utf-8')
     var ast = babylon.parse(code, {
@@ -294,7 +310,15 @@ Deps.prototype.transfrom = function(pth) {
             }
         }
     })
-    return generator(ast).code
+    var gen = generator(ast).code
+    if( sync ) {
+        try {
+            fs.outputFileSync(pth, gen)
+        }catch(e) {
+            console.log(e)
+        }
+    }
+    return gen
 }
 
 Deps.prototype.resolve = function(base, part) {

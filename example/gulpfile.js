@@ -16,8 +16,7 @@ gulp.task("release", function() {
                     utils: "./test/a/index.js",
                     math: "sub/math"
                 }
-            },
-            cache: true
+            }
         }))
         .pipe(gulp.dest("./dist"))
     })
