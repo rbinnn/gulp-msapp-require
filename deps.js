@@ -1,6 +1,7 @@
 var _ = require("lodash")
 var t = require("babel-types")
 var babylon = require("babylon")
+var Vinyl = require('vinyl')
 var traverse = require("babel-traverse").default
 var generator = require("babel-generator").default
 var {
