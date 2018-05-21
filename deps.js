@@ -17,7 +17,7 @@ function Deps(options) {
     this.depends = []
     this.pulledList = []
     this.map = {}
-    this.config = options
+    this.config = this.ensureConfig(options)
     this.resolver = ResolverFactory.createResolver(_.extend({
         fileSystem: new CachedInputFileSystem(new NodeJsInputFileSystem(), 4000),
         useSyncFileSystemCalls: true,
@@ -34,6 +34,31 @@ function Deps(options) {
     this.findDeps({
         path: unix(options.entry),
         file: options.file
+    })
+}
+
+Deps.prototype.ensureConfig = function(config) {
+    if( !path.isAbsolute( config.output) ) {
+        config.output = path.resolve(config.base, config.output)
+    }
+    config.resolve = this.ensureResolve(config)
+    return config
+}
+
+Deps.prototype.ensureResolve = function(config) {
+    const resolve = config.resolve
+    const oldAlias = resolve.alias
+    const alias = {}
+    const self = this
+    _.each(oldAlias, function(val, key) {
+        if( path.isAbsolute(val) || self.isModule(val)) {
+            alias[key] = val
+        }else {
+            alias[key] = path.resolve(config.base, val)
+        }
+    })
+    return _.extend({}, resolve, {
+        alias: alias
     })
 }
 
@@ -74,11 +99,11 @@ Deps.prototype.transferAlias = function(dep, origin) {
     var newDep = dep
     var transfer = _.find(alias, function(val, key) {
         if( /\$$/.test(key) && dep === key.substr(0, key.length - 1)) {
-            newDep = val
+            newDep = unix(val)
             return true
         }
         if( !/\$$/.test(key) && dep.indexOf(key) === 0 ) {
-            newDep = val + dep.substr(key.length, dep.length - key.length)
+            newDep = unix(val) + dep.substr(key.length, dep.length - key.length)
             return true
         }
     })
@@ -114,7 +139,7 @@ Deps.prototype.findDeps = function(opts, isModule) {
             sourceType: "module"
         })
     }catch(e) {
-        console.log("Parse Error in ",origin, "\n", e)
+        console.log("Parse Error in ", origin, "\n", e)
         return
     }
     var self = this
@@ -162,10 +187,10 @@ Deps.prototype.pushDeps = function(dep, origin, isModule, isVinyl) {
     var depObj = {
         key: dep, // 源文件的引用
         src: src, // 源文件的引用的绝对路径
-        dep:  transferInfo.dep, // 源文件的alias转换过后的引用
+        dep: transferInfo.dep, // 源文件的alias转换过后的引用
         origin: unix(origin), // 源文件的绝对路径
         transfer: transferInfo.transfer, // 是否成功匹配alias规则
-        module:_isModuleExtend, // 源文件的引用是否为模块（继承源文件）
+        module: _isModuleExtend, // 源文件的引用是否为模块（继承源文件）
         _module: _isModule, // 源文件的引用是否为模块
         vinyl: isVinyl
     }
@@ -187,6 +212,7 @@ Deps.prototype.getDeps = function() {
 
 Deps.prototype.parseDeps = function() {
     var that = this
+    var base = this.config.base
     this.depends.forEach(function(item) {
         if( !item.transfer && !item.module ) { // 没有用alias，不是外部模块, 直接忽略了
             return 
@@ -251,9 +277,10 @@ Deps.prototype.saveFromCache = function(depObj, dist) {
 }
 
 Deps.prototype.saveAlias = function(depObj) {
+    var dep = path.relative(path.dirname(depObj.origin), depObj.src)
     this.collectMap(
         depObj,
-        depObj.dep
+        unix(dep)
     )
 }
 

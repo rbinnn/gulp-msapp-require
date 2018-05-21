@@ -44,16 +44,27 @@ module.exports = function(options) {
             return
         }
         var config = _.extend({}, defaultConfig, options, {
-            entry: file.path
+            entry: file.path,
+            base: file.base
         })
 
         if( config.cache && _.isBoolean(config.cache) ) {
             config.cache = path.resolve(config.output, "./depends-cache.json")
         }
-
-        var entry = new Deps(config)
-        entry.parseDeps()
-        file.contents = new Buffer(entry.transfrom(file.path))
+        
+        var contents = file.contents
+        var entry
+        try {
+            entry = new Deps(config)
+            entry.parseDeps()
+            contents = entry.transfrom(file.path)
+        }catch(e) {
+            this.emit('error', new PluginError('gulp-msapp-require', e, {
+				fileName: file.path,
+				showProperties: false
+			}));
+        }
+        file.contents = new Buffer(contents)
         cb(null, file)
     })
 }

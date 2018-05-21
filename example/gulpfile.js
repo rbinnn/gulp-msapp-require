@@ -13,10 +13,14 @@ gulp.task("release", function() {
                 extensions: [".js", ".json"],
                 modules: [path.resolve(__dirname, "./custom"), path.resolve(__dirname, "../node_modules")],
                 alias: {
-                    utils: "./test/a/index.js",
-                    math: "sub/math"
+                    alias$: path.resolve("./dist/alias/index.js"),
+                    alias1: "sub/math.js",
+                    subb: "sub/b",
+                    hhb: "./hh/b",
                 }
             }
+        }).on("error", function(e) {
+            // console.log(e)
         }))
         .pipe(gulp.dest("./dist"))
     })
